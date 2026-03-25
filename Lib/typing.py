@@ -573,6 +573,16 @@ class _TypedCacheSpecialForm(_SpecialForm, _root=True):
         return self._getitem(self, *parameters)
 
 
+class _ParametricSelfForm(_SpecialForm, _root=True):
+    def __getitem__(self, parameters):
+        if not isinstance(parameters, tuple):
+            parameters = (parameters,)
+        if not parameters:
+            raise TypeError("Self requires at least one type argument")
+        parameters = tuple(_type_check(p, "Invalid {self}") for p in parameters)  # [TODO]: Error message
+        return _GenericAlias(self, parameters)
+
+
 class _AnyMeta(type):
     def __instancecheck__(self, obj):
         if self is Any:
@@ -649,9 +659,11 @@ def Never(self, parameters):
     raise TypeError(f"{self} is not subscriptable")
 
 
-@_SpecialForm
+@_ParametricSelfForm
 def Self(self, parameters):
     """Used to spell the type of "self" in classes.
+
+    Self[B] means 'the concrete receiver type, reparametrised with B'.
 
     Example::
 
@@ -666,7 +678,7 @@ def Self(self, parameters):
         - classmethods that are used as alternative constructors
         - annotating an `__enter__` method which returns self
     """
-    raise TypeError(f"{self} is not subscriptable")
+    raise TypeError(f"Cannot instantiate {self!r}")
 
 
 @_SpecialForm
