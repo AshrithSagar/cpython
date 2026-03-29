@@ -1032,6 +1032,29 @@ class KindVar:
     def __reduce__(self) -> str:
         return self.__name__
 
+    def __typing_subst__(self, arg):
+        return arg
+
+    def has_default(self):
+        return self.__default__ is not NoDefault
+
+    def __typing_prepare_subst__(self, alias, args):
+        params = alias.__parameters__
+        i = params.index(self)
+        args_len = len(args)
+
+        if i < args_len:
+            # Already have a value — pass through unchanged
+            return args
+        elif i == args_len:
+            # Try to use default
+            if self.__default__ is not NoDefault:
+                return args + (self.__default__,)
+        raise TypeError(
+            f"Too few arguments for {alias}; "
+            f"actual {args_len}, expected at least {i + 1}"
+        )
+
 
 class _KindApplication:
     """
@@ -1058,6 +1081,19 @@ class _KindApplication:
 
     def __class_getitem__(cls, item: Any) -> Any:
         return cls
+
+    @property
+    def __parameters__(self):
+        # Collect TypeVar/KindVar params from our args
+        params = []
+        for arg in self.__args__:
+            if _is_typevar_like(arg):
+                params.append(arg)
+            elif hasattr(arg, '__parameters__'):
+                params.extend(arg.__parameters__)
+        # Also include the constructor KindVar itself if it's free
+        # (it's free in F[A] — F hasn't been bound yet)
+        return (self.__constructor__,) + tuple(dict.fromkeys(params))
 
 
 def _make_forward_ref(code, *, parent_fwdref=None, **kwargs):
