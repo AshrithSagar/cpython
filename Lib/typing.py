@@ -573,16 +573,6 @@ class _TypedCacheSpecialForm(_SpecialForm, _root=True):
         return self._getitem(self, *parameters)
 
 
-class _ParametricSelfForm(_SpecialForm, _root=True):
-    def __getitem__(self, parameters):
-        if not isinstance(parameters, tuple):
-            parameters = (parameters,)
-        if not parameters:
-            raise TypeError("Self requires at least one type argument")
-        parameters = tuple(_type_check(p, "Invalid {self}") for p in parameters)  # [TODO]: Error message
-        return _GenericAlias(self, parameters)
-
-
 class _AnyMeta(type):
     def __instancecheck__(self, obj):
         if self is Any:
@@ -659,11 +649,9 @@ def Never(self, parameters):
     raise TypeError(f"{self} is not subscriptable")
 
 
-@_ParametricSelfForm
+@_SpecialForm
 def Self(self, parameters):
     """Used to spell the type of "self" in classes.
-
-    Self[B] means 'the concrete receiver type, reparametrised with B'.
 
     Example::
 
@@ -678,7 +666,7 @@ def Self(self, parameters):
         - classmethods that are used as alternative constructors
         - annotating an `__enter__` method which returns self
     """
-    raise TypeError(f"Cannot instantiate {self!r}")
+    raise TypeError(f"{self} is not subscriptable")
 
 
 @_SpecialForm
@@ -987,7 +975,7 @@ class KindVar:
         name: str,
         *constraints: type,
         bound: Any = None,
-        kind: int = 1,
+        arity: int = 1,
         default: Any = NoDefault,
     ) -> None:
         if constraints and bound is not None:
@@ -998,11 +986,11 @@ class KindVar:
             raise TypeError(
                 "KindVar requires at least two constraints"
             )
-        if kind < 1:
-            raise TypeError(f"KindVar kind must be >= 1, got {kind!r}")
+        if arity < 1:
+            raise TypeError(f"KindVar arity must be >= 1, got {arity!r}")
 
         self.__name__ = name
-        self.__kind__ = kind
+        self.__arity__ = arity
         self.__constraints__ = constraints
         self.__bound__ = bound
         self.__default__ = default
@@ -1013,9 +1001,9 @@ class KindVar:
         """F[A] — valid in annotations when F is a KindVar."""
         if not isinstance(args, tuple):
             args = (args,)
-        if len(args) != self.__kind__:
+        if len(args) != self.__arity__:
             raise TypeError(
-                f"KindVar '{self.__name__}' has kind {self.__kind__} "
+                f"KindVar '{self.__name__}' has arity {self.__arity__} "
                 f"but got {len(args)} argument(s)"
             )
         return _KindApplication(self, args)
